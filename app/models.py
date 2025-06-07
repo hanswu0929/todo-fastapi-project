@@ -5,7 +5,10 @@ class StatusEnum(str, Enum):
     todo = "todo"
     done = "done"
 
-class Todo(BaseModel):
+class TodoIn(BaseModel):
     title: str = Field(..., min_length=2, max_length=30, description="標題長度需2~30字")
     content: str = Field(..., min_length=1, max_length=200, description="內容長度需1~200字")
     status: StatusEnum = Field(StatusEnum.todo, description="狀態:todo 或 done")
+
+class TodoOut(TodoIn):
+    id: int

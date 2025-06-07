@@ -1,18 +1,18 @@
 from fastapi import APIRouter, HTTPException
-from app.models import Todo
+from app.models import TodoIn, TodoOut
 from app.db import get_db
 import logging
 
 router = APIRouter()
 
 # Create
-@router.post("/todos/", response_model=Todo)
+@router.post("/todos/", response_model=TodoOut)
 # 強制 API 回傳資料格式符合定義的 Pydantic 模型
 # 送出的資料格式錯誤、缺欄位、型別不符（例如 title 太短、status 不是 todo/done），
 # 這時候錯誤發生在進入 route function 之前，也就是「進到 create_todo 函式之前」就被 FastAPI + Pydantic 攔下來了
 # 所以 try/except 和 logging.error 根本沒有被執行到
 
-def create_todo(todo: Todo):
+def create_todo(todo: TodoIn):
     try:
         conn = get_db()
         cursor = conn.cursor()
@@ -21,14 +21,15 @@ def create_todo(todo: Todo):
             (todo.title, todo.content, todo.status)
         )
         conn.commit()
+        todo_id = cursor.lastrowid
         conn.close()
-        return todo
+        return TodoOut.model_validate({"id": todo_id, **todo.model_dump()})
     except Exception as e:
         logging.error(f"資料寫入失敗 {str(e)}")
         raise HTTPException(status_code=500, detail="資料寫入失敗，請聯絡管理員")
 
 # Read All
-@router.get("/todos/", response_model=list[Todo])
+@router.get("/todos/", response_model=list[TodoOut])
 def get_todos():
     try:
         conn = get_db()
@@ -36,15 +37,13 @@ def get_todos():
         cursor.execute("SELECT * FROM todos")
         rows = cursor.fetchall()
         conn.close()
-        return [Todo(**dict(row)) for row in rows]
-        # 參數拆包（dictionary unpacking）語法 
-        # 自動把 dict 內的每個 key 對應到 Todo model 的欄位名稱
+        return [TodoOut.model_validate(dict(row)) for row in rows]
     except Exception as e:
         logging.error(f"查詢全部資料失敗 {str(e)}")
         raise HTTPException(status_code=500, detail="查詢資料失敗，請聯絡管理員")
 
 # Read One
-@router.get("/todos/{todo_id}", response_model=Todo)
+@router.get("/todos/{todo_id}", response_model=TodoOut)
 def get_todo(todo_id: int):
     try:
         conn = get_db()
@@ -53,15 +52,19 @@ def get_todo(todo_id: int):
         row = cursor.fetchone()
         conn.close()
         if row:
-            return Todo(**dict(row))
+            return TodoOut.model_validate(dict(row))
+            # .model_validate()永遠只接受一個 dict 當作參數
+            # Pydantic 2.x 新增的方法：允許你直接把任意資料型態（如 dict 或物件）轉換成 Pydantic Model 實例。
+            # 功能類似舊版的 parse_obj()，但命名更清楚，設計更直觀。
+            # 它會自動幫你過濾、校驗欄位，甚至支援巢狀物件與型別自動轉換。
         raise HTTPException(status_code=404, detail="找不到該待辦事項")
     except Exception as e:
         logging.error(f"查詢單筆資料失敗 {str(e)}")
         raise HTTPException(status_code=500, detail="查詢資料失敗，請聯絡管理員")
 
 # Update
-@router.put("/todos/{todo_id}", response_model=Todo)
-def update_todo(todo_id: int, todo: Todo):
+@router.put("/todos/{todo_id}", response_model=TodoOut)
+def update_todo(todo_id: int, todo: TodoIn):
     try:
         conn = get_db()
         cursor = conn.cursor()
@@ -74,7 +77,7 @@ def update_todo(todo_id: int, todo: Todo):
             conn.close()
             raise HTTPException(status_code=404, detail="找不到該待辦事項")
         conn.close()
-        return todo
+        return TodoOut.model_validate({"id": todo_id, **todo.model_dump()})
     except Exception as e:
         logging.error(f"資料更新失敗 {str(e)}")
         raise HTTPException(status_code=500, detail="更新資料失敗，請聯絡管理員")
