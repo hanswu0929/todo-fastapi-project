@@ -6,7 +6,12 @@ import logging
 router = APIRouter()
 
 # Create
-@router.post("/todos/", response_model=Todo)  # 強制 API 回傳資料格式符合定義的 Pydantic 模型
+@router.post("/todos/", response_model=Todo)
+# 強制 API 回傳資料格式符合定義的 Pydantic 模型
+# 送出的資料格式錯誤、缺欄位、型別不符（例如 title 太短、status 不是 todo/done），
+# 這時候錯誤發生在進入 route function 之前，也就是「進到 create_todo 函式之前」就被 FastAPI + Pydantic 攔下來了
+# 所以 try/except 和 logging.error 根本沒有被執行到
+
 def create_todo(todo: Todo):
     try:
         conn = get_db()
