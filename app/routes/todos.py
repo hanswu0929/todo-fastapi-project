@@ -22,11 +22,12 @@ def create_todo(todo: TodoIn):
         )
         conn.commit()
         todo_id = cursor.lastrowid
-        conn.close()
         return TodoOut.model_validate({"id": todo_id, **todo.model_dump()})
     except Exception as e:
         logging.error(f"資料寫入失敗 {str(e)}")
         raise HTTPException(status_code=500, detail="資料寫入失敗，請聯絡管理員")
+    finally:
+        conn.close()
 
 # Read All
 @router.get("/todos/", response_model=list[TodoOut])
@@ -36,11 +37,12 @@ def get_todos():
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM todos")
         rows = cursor.fetchall()
-        conn.close()
         return [TodoOut.model_validate(dict(row)) for row in rows]
     except Exception as e:
         logging.error(f"查詢全部資料失敗 {str(e)}")
         raise HTTPException(status_code=500, detail="查詢資料失敗，請聯絡管理員")
+    finally:
+        conn.close()
 
 # Read One
 @router.get("/todos/{todo_id}", response_model=TodoOut)
@@ -50,7 +52,6 @@ def get_todo(todo_id: int):
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM todos WHERE id=?", (todo_id,))
         row = cursor.fetchone()
-        conn.close()
         if row:
             return TodoOut.model_validate(dict(row))
             # .model_validate()永遠只接受一個 dict 當作參數
@@ -61,6 +62,8 @@ def get_todo(todo_id: int):
     except Exception as e:
         logging.error(f"查詢單筆資料失敗 {str(e)}")
         raise HTTPException(status_code=500, detail="查詢資料失敗，請聯絡管理員")
+    finally:
+        conn.close()
 
 # Update
 @router.put("/todos/{todo_id}", response_model=TodoOut)
@@ -74,13 +77,13 @@ def update_todo(todo_id: int, todo: TodoIn):
         )
         conn.commit()
         if cursor.rowcount == 0:
-            conn.close()
             raise HTTPException(status_code=404, detail="找不到該待辦事項")
-        conn.close()
         return TodoOut.model_validate({"id": todo_id, **todo.model_dump()})
     except Exception as e:
         logging.error(f"資料更新失敗 {str(e)}")
         raise HTTPException(status_code=500, detail="更新資料失敗，請聯絡管理員")
+    finally:
+        conn.close()
 
 # Delete
 @router.delete("/todos/{todo_id}") # 回傳值簡單，不需response_model
@@ -91,10 +94,10 @@ def delete_todo(todo_id: int):
         cursor.execute("DELETE FROM todos WHERE id=?", (todo_id,))
         conn.commit()
         if cursor.rowcount == 0:
-            conn.close()
             raise HTTPException(status_code=404, detail="找不到該待辦事項")
-        conn.close()
         return {"message": "刪除成功", "id": todo_id}
     except Exception as e:
         logging.error(f"刪除資料失敗 {str(e)}")
         raise HTTPException(status_code=500, detail="刪除資料失敗，請聯絡管理員")
+    finally:
+        conn.close()
