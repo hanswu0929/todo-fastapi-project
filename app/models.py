@@ -8,6 +8,10 @@ class StatusEnum(str, Enum):
     todo = "todo"
     done = "done"
 
+class PriorityEnum(str, Enum):
+    low = "low"
+    medium = "medium"
+    high = "high"
 
 # 建立/修改 ToDo 時的輸入資料結構
 class TodoIn(BaseModel):
@@ -22,6 +26,7 @@ class TodoIn(BaseModel):
         Field(..., description="內容長度需1~200字")
     ]
     status: StatusEnum = Field(StatusEnum.todo, description="狀態:todo 或 done")
+    priority: PriorityEnum = Field(PriorityEnum.medium, description="任務優先權:low / medium / high")
 
 
 # 查詢 ToDo、回傳給前端時

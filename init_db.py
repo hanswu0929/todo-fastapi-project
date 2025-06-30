@@ -19,7 +19,8 @@ def init_db():
                 title TEXT NOT NULL,
                 content TEXT NOT NULL,
                 status TEXT DEFAULT 'todo',
-                owner TEXT NOT NULL
+                owner TEXT NOT NULL,
+                priority TEXT NOT NULL
             )
         ''')
         conn.commit()

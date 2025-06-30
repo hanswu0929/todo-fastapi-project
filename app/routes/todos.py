@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from app.models import TodoIn, TodoOut
 from app.db import get_db
-from app.routes.auth import verify_token
+from app.utils.auth_tool import verify_token
 import logging
 
 router = APIRouter()
@@ -18,8 +18,8 @@ def create_todo(todo: TodoIn, username: str = Depends(verify_token)):
         with get_db() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO todos (title, content, status, owner) VALUES (?, ?, ?, ?)",
-                (todo.title, todo.content, todo.status, username)
+                "INSERT INTO todos (title, content, status, owner, priority) VALUES (?, ?, ?, ?, ?)",
+                (todo.title, todo.content, todo.status, username, todo.priority)
             )
             conn.commit()
             todo_id = cursor.lastrowid
@@ -70,8 +70,8 @@ def update_todo(todo_id: int, todo: TodoIn, username: str = Depends(verify_token
         with get_db() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "UPDATE todos SET title=?, content=?, status=? WHERE id=? AND owner=?",
-                (todo.title, todo.content, todo.status, todo_id, username)
+                "UPDATE todos SET title=?, content=?, status=? , priority=? WHERE id=? AND owner=?",
+                (todo.title, todo.content, todo.status, todo.priority, todo_id, username)
             )
             conn.commit()
             if cursor.rowcount == 0:
