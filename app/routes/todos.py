@@ -58,6 +58,8 @@ def get_todo(todo_id: int, username: str = Depends(verify_token)):
                 # 功能類似舊版的 parse_obj()，但命名更清楚，設計更直觀
                 # 它會自動幫你過濾、校驗欄位，甚至支援巢狀物件與型別自動轉換
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到該待辦事項")
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"查詢單筆資料失敗 {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="查詢資料失敗，請聯絡管理員")
@@ -77,6 +79,8 @@ def update_todo(todo_id: int, todo: TodoIn, username: str = Depends(verify_token
             if cursor.rowcount == 0:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到該待辦事項")
             return TodoOut.model_validate({"id": todo_id, "owner": username, **todo.model_dump()})
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"資料更新失敗 {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="更新資料失敗，請聯絡管理員")
@@ -93,6 +97,8 @@ def delete_todo(todo_id: int, username: str = Depends(verify_token)):
             if cursor.rowcount == 0:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到該待辦事項")
             return {"message": "刪除成功", "id": todo_id}
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"刪除資料失敗 {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="刪除資料失敗，請聯絡管理員")

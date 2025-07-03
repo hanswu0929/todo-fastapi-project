@@ -3,6 +3,8 @@ from app.db import get_db
 def init_db():
     with get_db() as conn:
         cursor = conn.cursor()
+        # rollback journal -> Write-Ahead Logging，多個讀取可以跟寫入同時進行
+        cursor.execute("PRAGMA journal_mode=WAL;")
         # 建 users 表
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (

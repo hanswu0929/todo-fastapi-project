@@ -46,6 +46,8 @@ def login(username: str = Form(...), password: str = Form(...)):
         token = create_token(username)
         logging.info(f"登入成功: {username}")
         return {"access_token": token, "token_type": "bearer"}
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"登入流程發生未預期例外: {str(e)}，帳號: {username}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="伺服器內部錯誤，請稍後再試")
