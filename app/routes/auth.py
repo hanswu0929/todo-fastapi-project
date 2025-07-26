@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Form, Depends
-import sqlite3
+import psycopg2.extras
 import logging
 from app.models import UserCreate, Token
 from app.db import get_db
@@ -15,17 +15,23 @@ router = APIRouter()
 def register(user: UserCreate):
     with get_db() as conn:
         hashed_password = hash_password(user.password)
-        cursor = conn.cursor()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         try:
             cursor.execute(
-                "INSERT INTO users (username, password) VALUES (?, ?)",
+                "INSERT INTO users (username, password) VALUES (%s, %s)",
                 (user.username, hashed_password)
             )
             conn.commit()
             logging.info(f"註冊成功: {user.username}")
-        except sqlite3.IntegrityError:
+        # PostgreSQL 發生 unique 衝突會是 psycopg2.errors.UniqueViolation
+        except psycopg2.errors.UniqueViolation:
             logging.error(f"註冊失敗，帳號已存在: {user.username}")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="用戶名已存在")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logging.error(f"註冊流程發生未預期例外: {str(e)}，帳號: {user.username}")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="伺服器錯誤")
     return {"msg": "註冊成功"}
 
 
@@ -34,13 +40,14 @@ def register(user: UserCreate):
 def login(username: str = Form(...), password: str = Form(...)):
     try:
         with get_db() as conn:
-            cursor = conn.cursor()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             cursor.execute(
-                "SELECT password FROM users WHERE username=?",
+                "SELECT password FROM users WHERE username=%s",
                 (username,)
             )
             row = cursor.fetchone()
-            if not row or not verify_password(password, row[0]):
+            # row 會是 None 或 dict-like 物件
+            if not row or not verify_password(password, row["password"]):
                 logging.warning(f"登入失敗，帳號或密碼錯誤: {username}")
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="帳號或密碼錯誤")
         token = create_token(username)

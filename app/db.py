@@ -1,10 +1,17 @@
-import sqlite3
+import psycopg2
 from contextlib import contextmanager
+
+DB_CONFIG = {
+    "host":"localhost",
+    "port":"5432",
+    "user":"hans",
+    "password":"860929",
+    "dbname":"todo_db"
+}
 
 @contextmanager
 def get_db():
-    conn = sqlite3.connect("todos.db", timeout=10) # 加長等待時間
-    conn.row_factory = sqlite3.Row
+    conn = psycopg2.connect(**DB_CONFIG)
     try:
         yield conn
     finally:

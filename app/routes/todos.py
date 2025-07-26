@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from app.models import TodoIn, TodoOut
 from app.db import get_db
 from app.utils.auth_tool import verify_token
+import psycopg2.extras
 import logging
 
 router = APIRouter()
@@ -16,13 +17,19 @@ router = APIRouter()
 def create_todo(todo: TodoIn, username: str = Depends(verify_token)):
     try:
         with get_db() as conn:
-            cursor = conn.cursor()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            # INSERT 時把 RETURNING id 加在最後，直接要回 id 值
             cursor.execute(
-                "INSERT INTO todos (title, content, status, owner, priority) VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO todos (title, content, status, owner, priority) VALUES (%s, %s, %s, %s, %s) RETURNING id",
                 (todo.title, todo.content, todo.status, username, todo.priority)
             )
+            todo_id = cursor.fetchone()["id"]   # 直接拿到剛剛插入的資料 id
             conn.commit()
-            todo_id = cursor.lastrowid
+            # todo.model_dump()：把 Pydantic 物件 todo 轉成 dict
+            # **todo.model_dump()：把 dict 拆成單獨的鍵值對，方便與其他欄位合併
+            # {"id": todo_id, "owner": username, **todo.model_dump()}：組成一份含 id、owner 的完整字典
+            # TodoOut.model_validate(...)：用 Pydantic 的 TodoOut 型別檢查資料格式，回傳 API 用
+            # 注意 dict(todo.model_dump()) 是組成傳給前端的資料
             return TodoOut.model_validate({"id": todo_id, "owner": username, **todo.model_dump()})
     except Exception as e:
         logging.error(f"資料寫入失敗 {str(e)}")
@@ -34,9 +41,10 @@ def create_todo(todo: TodoIn, username: str = Depends(verify_token)):
 def get_todos(username: str = Depends(verify_token)):
     try:
         with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM todos WHERE owner=?", (username,))
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            cursor.execute("SELECT * FROM todos WHERE owner=%s", (username,))
             rows = cursor.fetchall()
+            # 這裡每個 row 都是 dict-like，可以直接 dict(row) 丟給 Pydantic
             return [TodoOut.model_validate(dict(row)) for row in rows]
     except Exception as e:
         logging.error(f"查詢全部資料失敗 {str(e)}")
@@ -48,8 +56,8 @@ def get_todos(username: str = Depends(verify_token)):
 def get_todo(todo_id: int, username: str = Depends(verify_token)):
     try:
         with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM todos WHERE id=? AND owner=?", (todo_id, username))
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            cursor.execute("SELECT * FROM todos WHERE id=%s AND owner=%s", (todo_id, username))
             row = cursor.fetchone()
             if row:
                 return TodoOut.model_validate(dict(row))
@@ -70,14 +78,15 @@ def get_todo(todo_id: int, username: str = Depends(verify_token)):
 def update_todo(todo_id: int, todo: TodoIn, username: str = Depends(verify_token)):
     try:
         with get_db() as conn:
-            cursor = conn.cursor()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             cursor.execute(
-                "UPDATE todos SET title=?, content=?, status=? , priority=? WHERE id=? AND owner=?",
+                "UPDATE todos SET title=%s, content=%s, status=%s, priority=%s WHERE id=%s AND owner=%s",
                 (todo.title, todo.content, todo.status, todo.priority, todo_id, username)
             )
             conn.commit()
             if cursor.rowcount == 0:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到該待辦事項")
+            # 回傳更新後的資料，id/owner + 新資料內容
             return TodoOut.model_validate({"id": todo_id, "owner": username, **todo.model_dump()})
     except HTTPException:
         raise
@@ -91,8 +100,8 @@ def update_todo(todo_id: int, todo: TodoIn, username: str = Depends(verify_token
 def delete_todo(todo_id: int, username: str = Depends(verify_token)):
     try:
         with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM todos WHERE id=? AND owner=?", (todo_id, username))
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            cursor.execute("DELETE FROM todos WHERE id=%s AND owner=%s", (todo_id, username))
             conn.commit()
             if cursor.rowcount == 0:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到該待辦事項")
